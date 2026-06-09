@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#1a0a00;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#050505;stop-opacity:1" />
+    </radialGradient>
+    <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#FF7A00;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#FF7A00;stop-opacity:0" />
+    </radialGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF9B42;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF5500;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="48" fill="url(#bgGrad)" stroke="#FF7A00" stroke-width="1.5" stroke-opacity="0.6"/>
+  <!-- Glow -->
+  <circle cx="50" cy="50" r="38" fill="url(#glowGrad)"/>
+  <!-- Hexagon pattern rings -->
+  <circle cx="50" cy="50" r="42" fill="none" stroke="#FF7A00" stroke-width="0.5" stroke-opacity="0.2" stroke-dasharray="4 4"/>
+  <circle cx="50" cy="50" r="35" fill="none" stroke="#FF7A00" stroke-width="0.5" stroke-opacity="0.15"/>
+  <!-- S letter -->
+  <text x="50" y="62" font-family="Arial Black, Arial" font-weight="900" font-size="44" text-anchor="middle" fill="url(#textGrad)" filter="url(#glow)">S</text>
+  <!-- AI text -->
+  <text x="50" y="78" font-family="Arial" font-weight="700" font-size="11" text-anchor="middle" fill="#FF7A00" opacity="0.8" letter-spacing="3">AI</text>
+  <!-- Decorative dots -->
+  <circle cx="20" cy="50" r="2" fill="#FF7A00" opacity="0.5"/>
+  <circle cx="80" cy="50" r="2" fill="#FF7A00" opacity="0.5"/>
+  <circle cx="50" cy="20" r="2" fill="#FF7A00" opacity="0.5"/>
+  <circle cx="50" cy="80" r="2" fill="#FF7A00" opacity="0.3"/>
+</svg>
