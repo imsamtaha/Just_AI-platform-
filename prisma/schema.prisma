@@ -71,6 +71,7 @@ model UserMemory {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, key])
   @@index([userId])
   @@index([type])
 }
