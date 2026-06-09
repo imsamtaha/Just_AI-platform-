@@ -27,7 +27,16 @@ export async function GET(req: NextRequest) {
       take: limit,
     });
 
-    return NextResponse.json(chats);
+    const formatted = chats.map(c => ({
+      id: c.id,
+      title: c.title,
+      pinned: c.pinned,
+      model: c.model,
+      updatedAt: c.updatedAt.toISOString(),
+      lastMessage: c.messages[0]?.content?.slice(0, 80) || null,
+    }));
+
+    return NextResponse.json({ chats: formatted });
   } catch {
     return NextResponse.json({ error: "Failed to fetch chats" }, { status: 500 });
   }
@@ -52,7 +61,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(chat, { status: 201 });
+    return NextResponse.json({ chat: { ...chat, updatedAt: chat.updatedAt.toISOString() } }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Failed to create chat" }, { status: 500 });
   }
