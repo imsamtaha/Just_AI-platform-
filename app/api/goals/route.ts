@@ -10,7 +10,7 @@ const goalSchema = z.object({
   dueDate: z.string().optional(),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,13 +18,18 @@ export async function GET() {
     const user = await db.user.findUnique({ where: { clerkId: userId } });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
+    const url = new URL(req.url);
+    const limit = parseInt(url.searchParams.get("limit") || "50");
+    const status = url.searchParams.get("status");
+
     const goals = await db.goal.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, ...(status ? { status: status as any } : {}) },
       include: { milestones: true, tasks: { select: { id: true, status: true } } },
       orderBy: { createdAt: "desc" },
+      take: limit,
     });
 
-    return NextResponse.json(goals);
+    return NextResponse.json({ goals });
   } catch {
     return NextResponse.json({ error: "Failed to fetch goals" }, { status: 500 });
   }

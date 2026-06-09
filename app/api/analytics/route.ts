@@ -11,49 +11,88 @@ export async function GET(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const today = new Date(now.setHours(0, 0, 0, 0));
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
 
     const [
-      totalChats,
       totalTasks,
-      completedTasks,
-      activeGoals,
-      totalAiGenerations,
-      weeklyUsage,
+      dueTodayTasks,
+      activeProjects,
+      completedProjects,
+      goals,
+      chatsThisWeek,
+      totalChatsThisMonth,
+      activeLeads,
+      hotLeads,
       recentChats,
+      recentTasks,
     ] = await Promise.all([
-      db.chat.count({ where: { userId: user.id } }),
       db.task.count({ where: { userId: user.id } }),
-      db.task.count({ where: { userId: user.id, status: "DONE" } }),
-      db.goal.count({ where: { userId: user.id, status: "ACTIVE" } }),
-      db.aiGeneration.count({ where: { userId: user.id } }),
-      db.usageLog.findMany({
-        where: { userId: user.id, createdAt: { gte: sevenDaysAgo } },
-        orderBy: { createdAt: "desc" },
+      db.task.count({
+        where: {
+          userId: user.id,
+          status: { not: "DONE" },
+          dueDate: { gte: todayStart, lt: new Date(todayStart.getTime() + 86400000) },
+        },
       }),
+      db.project.count({ where: { userId: user.id, status: "ACTIVE" } }),
+      db.project.count({ where: { userId: user.id, status: "COMPLETED" } }),
+      db.goal.findMany({
+        where: { userId: user.id, status: "ACTIVE" },
+        select: { progress: true },
+      }),
+      db.chat.count({ where: { userId: user.id, createdAt: { gte: sevenDaysAgo } } }),
+      db.chat.count({ where: { userId: user.id, createdAt: { gte: thirtyDaysAgo } } }),
+      db.lead.count({ where: { userId: user.id, status: { not: "LOST" } } }),
+      db.lead.count({ where: { userId: user.id, status: "QUALIFIED" } }),
       db.chat.findMany({
         where: { userId: user.id },
         orderBy: { updatedAt: "desc" },
-        take: 5,
+        take: 4,
         select: { id: true, title: true, model: true, updatedAt: true },
+      }),
+      db.task.findMany({
+        where: { userId: user.id },
+        orderBy: { updatedAt: "desc" },
+        take: 4,
+        select: { id: true, title: true, status: true, priority: true },
       }),
     ]);
 
-    const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const avgGoalProgress = goals.length > 0
+      ? Math.round(goals.reduce((sum, g) => sum + g.progress, 0) / goals.length)
+      : 0;
+
+    // Rough usage percentage based on chats this month (100 chats = 100%)
+    const chatUsagePct = Math.min(100, Math.round((totalChatsThisMonth / 100) * 100));
 
     return NextResponse.json({
-      overview: {
-        totalChats,
+      stats: {
         totalTasks,
-        completedTasks,
-        activeGoals,
-        totalAiGenerations,
-        taskCompletionRate,
+        dueTodayTasks,
+        activeProjects,
+        completedProjects,
+        activeGoals: goals.length,
+        avgGoalProgress,
+        totalChatsThisWeek: chatsThisWeek,
+        chatUsagePct,
+        activeLeads,
+        hotLeads,
       },
-      weeklyUsage,
-      recentChats,
+      recentChats: recentChats.map(c => ({
+        id: c.id,
+        title: c.title,
+        model: c.model,
+        updatedAt: c.updatedAt.toISOString(),
+      })),
+      recentTasks: recentTasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        status: t.status.toLowerCase().replace("_", "-"),
+        priority: t.priority.toLowerCase(),
+      })),
     });
   } catch (error) {
     console.error("Analytics error:", error);
