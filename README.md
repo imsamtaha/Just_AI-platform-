@@ -1,4 +1,4 @@
-# SAM AI — All-in-One AI Productivity Ecosystem
+# JUST AI — All-in-One AI Productivity Ecosystem
 
 Premium SaaS platform combining AI Assistant, Planner, Writer, Business Consultant, CRM, Automations, Knowledge Base, Project Manager, and Analytics.
 
