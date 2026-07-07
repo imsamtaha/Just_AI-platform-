@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
+    "@auth/prisma-adapter": "^2.11.2",
     "@clerk/nextjs": "^5.7.0",
     "@google/generative-ai": "^0.21.0",
     "@hookform/resolvers": "^3.9.0",
@@ -42,6 +43,7 @@
     "@uploadthing/react": "^7.1.0",
     "ai": "^3.4.33",
     "axios": "^1.7.7",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
@@ -49,6 +51,7 @@
     "framer-motion": "^11.11.11",
     "lucide-react": "^0.454.0",
     "next": "15.0.3",
+    "next-auth": "^4.24.14",
     "next-themes": "^0.4.3",
     "openai": "^4.67.0",
     "prisma": "^5.22.0",
