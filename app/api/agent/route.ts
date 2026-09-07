@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
-import { chat, type ModelId } from "@/lib/ai";
+import { type ModelId } from "@/lib/ai";
+import { runMultiSkillOrchestration } from "@/lib/agent/orchestrator";
 import { AgentPersistence } from "@/lib/agent/persistence";
 import { routeAgentSkills } from "@/lib/agent/router";
-import { JUST_AI_AGENT_BASE_PROMPT, loadAgentSkills } from "@/lib/agent/skills";
+import { JUST_AI_AGENT_BASE_PROMPT } from "@/lib/agent/skills";
+import { buildAgentToolContext } from "@/lib/agent/tools";
 
 export const runtime = "nodejs";
 
@@ -61,39 +63,63 @@ export async function POST(request: Request) {
     }
 
     const route = routeAgentSkills(latestUserMessage.content);
-    const skillInstructions = await loadAgentSkills(route.skills);
-    const systemPrompt = `${JUST_AI_AGENT_BASE_PROMPT}\n\nROUTING DECISION:\n${route.reason}\nSelected skills: ${route.skills.join(", ")}\n\n${skillInstructions}`;
 
-    const startedAt = Date.now();
-    const response = await chat(messages, model, systemPrompt);
-    const latencyMs = Date.now() - startedAt;
+    const accessToken = await getToken();
+    const persistence = accessToken
+      ? AgentPersistence.fromEnv(accessToken, userId)
+      : null;
 
     let sessionId = parsed.data.sessionId;
+    if (persistence && !sessionId) {
+      try {
+        sessionId = await persistence.createSession(latestUserMessage.content);
+      } catch (sessionError) {
+        console.error("JUST AI session persistence error:", sessionError);
+      }
+    }
+
+    const toolContext = await buildAgentToolContext({
+      message: latestUserMessage.content,
+      persistence,
+      sessionId,
+    });
+
+    const routingPrompt = `${JUST_AI_AGENT_BASE_PROMPT}\n\nROUTING DECISION:\n${route.reason}\nSelected skills: ${route.skills.join(", ")}`;
+
+    const startedAt = Date.now();
+    const response = await runMultiSkillOrchestration({
+      messages,
+      model,
+      skills: route.skills,
+      basePrompt: routingPrompt,
+      toolContext: toolContext.promptContext,
+    });
+    const latencyMs = Date.now() - startedAt;
+
     let executionId: string | null = null;
     let persisted = false;
 
-    try {
-      const accessToken = await getToken();
-      const persistence = accessToken
-        ? AgentPersistence.fromEnv(accessToken, userId)
-        : null;
-
-      if (persistence) {
-        sessionId = sessionId || (await persistence.createSession(latestUserMessage.content));
+    if (persistence && sessionId) {
+      try {
         executionId = await persistence.recordExecution({
           sessionId,
           prompt: latestUserMessage.content,
           output: response.content,
           selectedSkills: route.skills,
-          validation: { ok: true, routing: route.reason },
+          validation: {
+            ok: true,
+            routing: route.reason,
+            orchestrated: response.orchestrated,
+            tools: toolContext.results.map(({ tool, ok, error }) => ({ tool, ok, error })),
+          },
           model: response.model,
           latencyMs,
         });
         await persistence.recordSkillUsage(executionId, route.skills);
         persisted = true;
+      } catch (persistenceError) {
+        console.error("JUST AI persistence error:", persistenceError);
       }
-    } catch (persistenceError) {
-      console.error("JUST AI persistence error:", persistenceError);
     }
 
     return NextResponse.json({
@@ -106,6 +132,12 @@ export async function POST(request: Request) {
       executionId,
       persisted,
       latencyMs,
+      orchestrated: response.orchestrated,
+      specialists: response.specialists.map((specialist) => ({
+        skill: specialist.skill,
+        model: specialist.model,
+      })),
+      tools: toolContext.results.map(({ tool, ok, error }) => ({ tool, ok, error })),
     });
   } catch (error) {
     console.error("JUST AI agent API error:", error);
