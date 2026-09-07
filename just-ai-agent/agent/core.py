@@ -5,6 +5,7 @@ from typing import Optional
 
 from .loader import SkillLoader
 from .models import AgentResult
+from .persistence import PersistenceBackend, PersistenceError
 from .provider import EchoProvider, ModelProvider
 from .router import SkillRouter
 from .validator import SkillValidator
@@ -31,13 +32,22 @@ class JustAIAgent:
         skills_root: str | Path,
         provider: Optional[ModelProvider] = None,
         max_skills: int = 3,
+        persistence: Optional[PersistenceBackend] = None,
     ):
         self.loader = SkillLoader(skills_root)
         self.router = SkillRouter(self.loader, max_skills=max_skills)
         self.validator = SkillValidator()
         self.provider = provider or EchoProvider()
+        self.persistence = persistence
 
-    def run(self, user_input: str) -> AgentResult:
+    def run(
+        self,
+        user_input: str,
+        *,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        session_title: str | None = None,
+    ) -> AgentResult:
         decision = self.router.route(user_input)
         loaded = [self.loader.load(name) for name in decision.skills]
 
@@ -57,6 +67,38 @@ class JustAIAgent:
 
         output = self.provider.generate(system_prompt, user_input)
         validation = self.validator.validate(output, decision.skills)
+
+        if self.persistence is not None:
+            if not user_id:
+                validation["persistence"] = {
+                    "ok": False,
+                    "error": "user_id_required",
+                }
+            else:
+                try:
+                    active_session_id = session_id or self.persistence.create_session(
+                        user_id=user_id,
+                        title=session_title,
+                    )
+                    execution_id = self.persistence.save_execution(
+                        user_id=user_id,
+                        session_id=active_session_id,
+                        user_input=user_input,
+                        output=output,
+                        selected_skills=decision.skills,
+                        validation=validation,
+                        model=getattr(self.provider, "model", None),
+                    )
+                    validation["persistence"] = {
+                        "ok": True,
+                        "session_id": active_session_id,
+                        "execution_id": execution_id,
+                    }
+                except PersistenceError as exc:
+                    validation["persistence"] = {
+                        "ok": False,
+                        "error": str(exc),
+                    }
 
         return AgentResult(
             input=user_input,
