@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
       { hostname: "utfs.io" },
     ],
   },
+  outputFileTracingIncludes: {
+    "/api/agent": ["./just-ai-agent/just-ai-skills/**/SKILL.md"],
+  },
   experimental: {
     serverComponentsExternalPackages: ["@prisma/client"],
   },

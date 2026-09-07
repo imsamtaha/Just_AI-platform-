@@ -6,6 +6,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   model?: string;
+  selectedSkills?: string[];
   timestamp: Date;
 }
 
@@ -16,6 +17,7 @@ interface UseChatsOptions {
 
 export function useChats({ model = "GPT4O", onMessage }: UseChatsOptions = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,10 +42,14 @@ export function useChats({ model = "GPT4O", onMessage }: UseChatsOptions = {}) {
           content: m.content,
         }));
 
-        const response = await fetch("/api/ai", {
+        const response = await fetch("/api/agent", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: allMessages, model }),
+          body: JSON.stringify({
+            messages: allMessages,
+            model,
+            ...(sessionId ? { sessionId } : {}),
+          }),
         });
 
         if (!response.ok) {
@@ -51,11 +57,14 @@ export function useChats({ model = "GPT4O", onMessage }: UseChatsOptions = {}) {
         }
 
         const data = await response.json();
+        if (data.sessionId) setSessionId(data.sessionId);
+
         const assistantMessage: ChatMessage = {
-          id: `assistant-${Date.now()}`,
+          id: data.executionId || `assistant-${Date.now()}`,
           role: "assistant",
           content: data.content || "Sorry, I couldn't process that.",
           model: data.model,
+          selectedSkills: data.selectedSkills,
           timestamp: new Date(),
         };
 
@@ -65,17 +74,18 @@ export function useChats({ model = "GPT4O", onMessage }: UseChatsOptions = {}) {
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
         setError(message);
-        toast.error("Failed to get AI response");
+        toast.error("Failed to get JUST AI response");
         return null;
       } finally {
         setLoading(false);
       }
     },
-    [messages, loading, model, onMessage]
+    [messages, loading, model, onMessage, sessionId]
   );
 
   const clearMessages = useCallback(() => {
     setMessages([]);
+    setSessionId(null);
     setError(null);
   }, []);
 
@@ -87,6 +97,7 @@ export function useChats({ model = "GPT4O", onMessage }: UseChatsOptions = {}) {
 
   return {
     messages,
+    sessionId,
     loading,
     error,
     sendMessage,
