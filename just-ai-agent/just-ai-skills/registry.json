@@ -1,0 +1,16 @@
+{
+  "name": "just-ai-skills",
+  "version": "1.0.0",
+  "provider": "JUST AI",
+  "skills": [
+    {"name":"coding","description":"Software engineering, debugging, testing, refactoring, APIs and production implementation.","path":"coding/SKILL.md","version":"1.0.0"},
+    {"name":"automation","description":"Business and AI automation workflows, integrations, triggers, retries and approvals.","path":"automation/SKILL.md","version":"1.0.0"},
+    {"name":"prompt-engineering","description":"Prompt, system instruction, agent policy and reusable prompt optimization.","path":"prompt-engineering/SKILL.md","version":"1.0.0"},
+    {"name":"ai-research","description":"Structured evidence-based research for AI, technology, tools, markets and current information.","path":"ai-research/SKILL.md","version":"1.0.0"},
+    {"name":"business-strategy","description":"Business models, positioning, product strategy, GTM and executive decision support.","path":"business-strategy/SKILL.md","version":"1.0.0"},
+    {"name":"marketing","description":"Marketing strategy, campaigns, messaging, funnels, launches and growth measurement.","path":"marketing/SKILL.md","version":"1.0.0"},
+    {"name":"sales","description":"Prospecting, qualification, outreach, objections, proposals, follow-up and CRM workflows.","path":"sales/SKILL.md","version":"1.0.0"},
+    {"name":"ui-ux-design","description":"Interface architecture, UX flows, design systems, responsive layouts and accessibility.","path":"ui-ux-design/SKILL.md","version":"1.0.0"},
+    {"name":"logo-design","description":"Logo, wordmark, monogram, visual identity and production-ready brand specifications.","path":"logo-design/SKILL.md","version":"1.0.0"}
+  ]
+}
