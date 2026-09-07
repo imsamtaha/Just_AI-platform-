@@ -15,6 +15,10 @@ interface ExecutionRow {
   id: string;
 }
 
+interface ToolRequestInsertRow {
+  id: string;
+}
+
 export interface AgentMemoryRow {
   id: string;
   session_id: string | null;
@@ -32,6 +36,31 @@ export interface RecentExecutionRow {
   selected_skills: string[];
   model: string | null;
   created_at: string;
+}
+
+export interface AgentToolRequestRow {
+  id: string;
+  user_id: string;
+  session_id: string | null;
+  tool_name: string;
+  risk: "read" | "write" | "consequential";
+  input: Record<string, unknown>;
+  status:
+    | "pending"
+    | "approved"
+    | "rejected"
+    | "executing"
+    | "executed"
+    | "failed"
+    | "expired";
+  output: unknown;
+  error: string | null;
+  approval_note: string | null;
+  created_at: string;
+  approved_at: string | null;
+  rejected_at: string | null;
+  executed_at: string | null;
+  updated_at: string;
 }
 
 export class AgentPersistence {
@@ -168,5 +197,73 @@ export class AgentPersistence {
     return this.request<RecentExecutionRow[]>(`agent_executions?${params.toString()}`, {
       method: "GET",
     });
+  }
+
+  async createToolRequest(input: {
+    sessionId?: string;
+    toolName: string;
+    risk: "read" | "write" | "consequential";
+    payload: Record<string, unknown>;
+  }): Promise<string> {
+    const rows = await this.request<ToolRequestInsertRow[]>("agent_tool_requests", {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: this.config.userId,
+        session_id: input.sessionId || null,
+        tool_name: input.toolName,
+        risk: input.risk,
+        input: input.payload,
+        status: "pending",
+      }),
+    });
+
+    if (!rows?.[0]?.id) throw new Error("Supabase did not return a tool request id");
+    return rows[0].id;
+  }
+
+  async getToolRequest(requestId: string): Promise<AgentToolRequestRow | null> {
+    const params = new URLSearchParams({
+      select: "*",
+      id: `eq.${requestId}`,
+      limit: "1",
+    });
+    const rows = await this.request<AgentToolRequestRow[]>(
+      `agent_tool_requests?${params.toString()}`,
+      { method: "GET" }
+    );
+    return rows?.[0] || null;
+  }
+
+  async updateToolRequest(
+    requestId: string,
+    patch: Partial<Pick<AgentToolRequestRow, "status" | "output" | "error" | "approval_note">> & {
+      approved_at?: string | null;
+      rejected_at?: string | null;
+      executed_at?: string | null;
+    }
+  ): Promise<AgentToolRequestRow> {
+    const params = new URLSearchParams({ id: `eq.${requestId}` });
+    const rows = await this.request<AgentToolRequestRow[]>(
+      `agent_tool_requests?${params.toString()}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
+      }
+    );
+    if (!rows?.[0]) throw new Error("Tool request update returned no row");
+    return rows[0];
+  }
+
+  async listPendingToolRequests(limit = 20): Promise<AgentToolRequestRow[]> {
+    const params = new URLSearchParams({
+      select: "*",
+      status: "eq.pending",
+      order: "created_at.desc",
+      limit: String(Math.min(50, Math.max(1, limit))),
+    });
+    return this.request<AgentToolRequestRow[]>(
+      `agent_tool_requests?${params.toString()}`,
+      { method: "GET" }
+    );
   }
 }
