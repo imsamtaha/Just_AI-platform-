@@ -3,10 +3,12 @@ import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
 import { type ModelId } from "@/lib/ai";
+import { externalTools } from "@/lib/agent/external-tools";
 import { runMultiSkillOrchestration } from "@/lib/agent/orchestrator";
 import { AgentPersistence } from "@/lib/agent/persistence";
 import { routeAgentSkills } from "@/lib/agent/router";
 import { JUST_AI_AGENT_BASE_PROMPT } from "@/lib/agent/skills";
+import { planExternalTool } from "@/lib/agent/tool-planner";
 import { buildAgentToolContext } from "@/lib/agent/tools";
 
 export const runtime = "nodejs";
@@ -54,7 +56,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unsupported model" }, { status: 400 });
     }
 
-    // User-supplied system messages are excluded. JUST AI owns the execution policy.
     const messages = parsed.data.messages.filter((message) => message.role !== "system");
     const latestUserMessage = [...messages].reverse().find((message) => message.role === "user");
 
@@ -84,7 +85,68 @@ export async function POST(request: Request) {
       sessionId,
     });
 
-    const routingPrompt = `${JUST_AI_AGENT_BASE_PROMPT}\n\nROUTING DECISION:\n${route.reason}\nSelected skills: ${route.skills.join(", ")}`;
+    let toolAction: null | {
+      status: "pending" | "executed";
+      requestId?: string;
+      tool: string;
+      risk: "read" | "write" | "consequential";
+      reason: string;
+      input: Record<string, unknown>;
+      output?: unknown;
+    } = null;
+
+    if (persistence && sessionId) {
+      try {
+        const plan = await planExternalTool({
+          message: latestUserMessage.content,
+          model,
+        });
+
+        if (plan) {
+          const tool = externalTools.get(plan.tool);
+          if (tool && tool.enabled()) {
+            if (tool.risk === "read") {
+              const output = await externalTools.execute(tool.name, plan.input, {
+                userId,
+                sessionId,
+                persistence,
+              });
+              toolAction = {
+                status: "executed",
+                tool: tool.name,
+                risk: tool.risk,
+                reason: plan.reason,
+                input: plan.input,
+                output,
+              };
+            } else {
+              const requestId = await persistence.createToolRequest({
+                sessionId,
+                toolName: tool.name,
+                risk: tool.risk,
+                payload: plan.input,
+              });
+              toolAction = {
+                status: "pending",
+                requestId,
+                tool: tool.name,
+                risk: tool.risk,
+                reason: plan.reason,
+                input: plan.input,
+              };
+            }
+          }
+        }
+      } catch (plannerError) {
+        console.error("JUST AI external tool planner error:", plannerError);
+      }
+    }
+
+    const actionPrompt = toolAction
+      ? `\n\nEXTERNAL TOOL ACTION:\n${JSON.stringify(toolAction).slice(0, 8000)}\nIf status is pending, clearly tell the user the action is awaiting their approval and do not claim it executed. If status is executed, you may summarize the result.`
+      : "";
+
+    const routingPrompt = `${JUST_AI_AGENT_BASE_PROMPT}\n\nROUTING DECISION:\n${route.reason}\nSelected skills: ${route.skills.join(", ")}${actionPrompt}`;
 
     const startedAt = Date.now();
     const response = await runMultiSkillOrchestration({
@@ -111,6 +173,9 @@ export async function POST(request: Request) {
             routing: route.reason,
             orchestrated: response.orchestrated,
             tools: toolContext.results.map(({ tool, ok, error }) => ({ tool, ok, error })),
+            externalTool: toolAction
+              ? { tool: toolAction.tool, risk: toolAction.risk, status: toolAction.status }
+              : null,
           },
           model: response.model,
           latencyMs,
@@ -138,6 +203,7 @@ export async function POST(request: Request) {
         model: specialist.model,
       })),
       tools: toolContext.results.map(({ tool, ok, error }) => ({ tool, ok, error })),
+      toolAction,
     });
   } catch (error) {
     console.error("JUST AI agent API error:", error);
