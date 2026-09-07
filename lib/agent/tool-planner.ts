@@ -15,7 +15,9 @@ function looksLikeActionRequest(message: string): boolean {
     "create", "open", "add", "schedule", "book", "send", "run", "trigger",
     "start", "make", "log", "save", "post", "publish", "update"
   ];
-  const connectorTerms = ["github", "issue", "calendar", "meeting", "event", "crm", "contact", "workflow", "automation"];
+  const connectorTerms = [
+    "github", "issue", "calendar", "meeting", "event", "crm", "contact", "workflow", "automation"
+  ];
   return actionTerms.some((term) => text.includes(term)) && connectorTerms.some((term) => text.includes(term));
 }
 
@@ -36,6 +38,7 @@ export async function planExternalTool(input: {
   message: string;
   model: ModelId;
 }): Promise<PlannedExternalTool | null> {
+  if (process.env.JUST_AI_TOOL_PLANNER_ENABLED === "false") return null;
   if (!looksLikeActionRequest(input.message)) return null;
 
   const tools = externalTools.list().filter((tool) => tool.enabled);
@@ -63,9 +66,13 @@ export async function planExternalTool(input: {
 
   return {
     tool: parsed.tool,
-    input: parsed.input && typeof parsed.input === "object" && !Array.isArray(parsed.input)
-      ? (parsed.input as Record<string, unknown>)
-      : {},
-    reason: typeof parsed.reason === "string" ? parsed.reason.slice(0, 500) : "User requested an external action.",
+    input:
+      parsed.input && typeof parsed.input === "object" && !Array.isArray(parsed.input)
+        ? (parsed.input as Record<string, unknown>)
+        : {},
+    reason:
+      typeof parsed.reason === "string"
+        ? parsed.reason.slice(0, 500)
+        : "User requested an external action.",
   };
 }
