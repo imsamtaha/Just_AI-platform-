@@ -15,6 +15,25 @@ interface ExecutionRow {
   id: string;
 }
 
+export interface AgentMemoryRow {
+  id: string;
+  session_id: string | null;
+  memory_key: string;
+  content: string;
+  memory_type: string;
+  metadata: Record<string, unknown>;
+  updated_at: string;
+}
+
+export interface RecentExecutionRow {
+  id: string;
+  input: string;
+  output: string | null;
+  selected_skills: string[];
+  model: string | null;
+  created_at: string;
+}
+
 export class AgentPersistence {
   private readonly baseUrl: string;
 
@@ -116,6 +135,38 @@ export class AgentPersistence {
           metadata: { source: "nextjs-api" },
         }))
       ),
+    });
+  }
+
+  async getRecentMemories(limit = 6, sessionId?: string): Promise<AgentMemoryRow[]> {
+    const params = new URLSearchParams({
+      select: "id,session_id,memory_key,content,memory_type,metadata,updated_at",
+      order: "updated_at.desc",
+      limit: String(Math.min(20, Math.max(1, limit))),
+    });
+
+    if (sessionId) {
+      params.set("or", `(session_id.eq.${sessionId},session_id.is.null)`);
+    }
+
+    return this.request<AgentMemoryRow[]>(`agent_memories?${params.toString()}`, {
+      method: "GET",
+    });
+  }
+
+  async getRecentExecutions(
+    sessionId: string,
+    limit = 4
+  ): Promise<RecentExecutionRow[]> {
+    const params = new URLSearchParams({
+      select: "id,input,output,selected_skills,model,created_at",
+      session_id: `eq.${sessionId}`,
+      order: "created_at.desc",
+      limit: String(Math.min(10, Math.max(1, limit))),
+    });
+
+    return this.request<RecentExecutionRow[]>(`agent_executions?${params.toString()}`, {
+      method: "GET",
     });
   }
 }
